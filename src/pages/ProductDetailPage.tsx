@@ -1,16 +1,21 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, ShoppingCart, Shield, Star, Truck, RotateCcw, CreditCard } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Shield, Star, Truck, RotateCcw, CreditCard, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getProductById } from "@/data/products";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [quantity, setQuantity] = useState(1);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const { requireAuth, AuthGuard } = useAuthGuard();
+  const { toast } = useToast();
   
   if (!id) {
     return <div>Product not found</div>;
@@ -42,6 +47,34 @@ export default function ProductDetailPage() {
     }
   };
 
+  const handleAddToCart = () => {
+    requireAuth(() => {
+      toast({
+        title: "Added to Cart",
+        description: `${product.name} (${quantity}) added to your cart`
+      });
+    });
+  };
+
+  const handleBuyNow = () => {
+    requireAuth(() => {
+      toast({
+        title: "Redirecting to Checkout",
+        description: "Taking you to secure checkout..."
+      });
+    });
+  };
+
+  const handleToggleFavorite = () => {
+    requireAuth(() => {
+      setIsFavorite(!isFavorite);
+      toast({
+        title: isFavorite ? "Removed from Favorites" : "Added to Favorites",
+        description: `${product.name} ${isFavorite ? 'removed from' : 'added to'} your favorites`
+      });
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -51,18 +84,26 @@ export default function ProductDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline">{product.category}</Badge>
-            <Badge className={getStatusColor(product.status)}>
-              {product.status}
-            </Badge>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline">{product.category}</Badge>
+              <Badge className={getStatusColor(product.status)}>
+                {product.status}
+              </Badge>
+            </div>
+            <h1 className="text-3xl font-bold bg-gradient-cyber bg-clip-text text-transparent">
+              {product.name}
+            </h1>
+            <p className="text-muted-foreground">{product.brand} • {product.model}</p>
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-cyber bg-clip-text text-transparent">
-            {product.name}
-          </h1>
-          <p className="text-muted-foreground">{product.brand} • {product.model}</p>
-        </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleToggleFavorite}
+            className={isFavorite ? "text-red-500" : "text-muted-foreground"}
+          >
+            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+          </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -125,11 +166,12 @@ export default function ProductDetailPage() {
                   variant="cyber" 
                   className="flex-1"
                   disabled={product.status === "Out of Stock"}
+                  onClick={handleAddToCart}
                 >
                   <ShoppingCart className="h-4 w-4" />
                   Add to Cart
                 </Button>
-                <Button variant="cyber-outline">
+                <Button variant="cyber-outline" onClick={handleBuyNow}>
                   <CreditCard className="h-4 w-4" />
                   Buy Now
                 </Button>
@@ -160,6 +202,8 @@ export default function ProductDetailPage() {
           </Card>
         </div>
       </div>
+
+      <AuthGuard />
 
       {/* Detailed Information Tabs */}
       <Tabs defaultValue="features" className="w-full">

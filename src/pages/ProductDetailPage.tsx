@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, ShoppingCart, Shield, Star, Truck, RotateCcw, CreditCard, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,22 +6,55 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getProductById } from "@/data/products";
+import { getProductById, Product } from "@/data/products";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useToast } from "@/hooks/use-toast";
+import { cartApi, favoritesApi } from "@/lib/api";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const { requireAuth, AuthGuard } = useAuthGuard();
   const { toast } = useToast();
-  
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) {
+        setLoading(false)
+        return
+      }
+      
+      try {
+        const productData = await getProductById(parseInt(id))
+        setProduct(productData || null)
+        
+        // Check if product is in favorites
+        if (productData) {
+          const isFav = await favoritesApi.isExists(productData.id)
+          setIsFavorite(isFav)
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error)
+        setProduct(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProduct()
+  }, [id])
+
   if (!id) {
     return <div>Product not found</div>;
   }
 
-  const product = getProductById(parseInt(id));
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>;
+  }
   
   if (!product) {
     return (
@@ -48,30 +81,75 @@ export default function ProductDetailPage() {
   };
 
   const handleAddToCart = () => {
-    requireAuth(() => {
-      toast({
-        title: "Added to Cart",
-        description: `${product.name} (${quantity}) added to your cart`
-      });
+    requireAuth(async () => {
+      if (!product) return
+      
+      setIsAddingToCart(true)
+      try {
+        await cartApi.add(product.id, quantity)
+        toast({
+          title: "Added to Cart",
+          description: `${product.name} (${quantity}) added to your cart`
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to add item to cart. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsAddingToCart(false)
+      }
     });
   };
 
   const handleBuyNow = () => {
-    requireAuth(() => {
-      toast({
-        title: "Redirecting to Checkout",
-        description: "Taking you to secure checkout..."
-      });
+    requireAuth(async () => {
+      if (!product) return
+      
+      try {
+        await cartApi.add(product.id, quantity)
+        toast({
+          title: "Redirecting to Checkout",
+          description: "Item added to cart. Taking you to checkout..."
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to process order. Please try again.",
+          variant: "destructive"
+        });
+      }
     });
   };
 
   const handleToggleFavorite = () => {
-    requireAuth(() => {
-      setIsFavorite(!isFavorite);
-      toast({
-        title: isFavorite ? "Removed from Favorites" : "Added to Favorites",
-        description: `${product.name} ${isFavorite ? 'removed from' : 'added to'} your favorites`
-      });
+    requireAuth(async () => {
+      if (!product) return
+      
+      try {
+        if (isFavorite) {
+          await favoritesApi.remove(product.id)
+          setIsFavorite(false)
+          toast({
+            title: "Removed from Favorites",
+            description: `${product.name} removed from your favorites`
+          });
+        } else {
+          await favoritesApi.add(product.id)
+          setIsFavorite(true)
+          toast({
+            title: "Added to Favorites",
+            description: `${product.name} added to your favorites`
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update favorites. Please try again.",
+          variant: "destructive"
+        });
+      }
     });
   };
 
@@ -165,11 +243,11 @@ export default function ProductDetailPage() {
                 <Button 
                   variant="cyber" 
                   className="flex-1"
-                  disabled={product.status === "Out of Stock"}
+                  disabled={product.status === "Out of Stock" || isAddingToCart}
                   onClick={handleAddToCart}
                 >
                   <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
+                  {isAddingToCart ? "Adding..." : "Add to Cart"}
                 </Button>
                 <Button variant="cyber-outline" onClick={handleBuyNow}>
                   <CreditCard className="h-4 w-4" />
@@ -230,14 +308,14 @@ export default function ProductDetailPage() {
         <TabsContent value="specifications" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4 text-cyber-primary">Technical Specifications</h3>
-            <div className="space-y-3">
-              {Object.entries(product.technicalSpecs).map(([key, value]) => (
-                <div key={key} className="flex justify-between py-2 border-b border-border/50">
-                  <span className="font-medium">{key}:</span>
-                  <span className="text-muted-foreground">{value}</span>
-                </div>
-              ))}
-            </div>
+             <div className="space-y-3">
+               {product.technical_specs && Object.entries(product.technical_specs).map(([key, value]) => (
+                 <div key={key} className="flex justify-between py-2 border-b border-border/50">
+                   <span className="font-medium">{key}:</span>
+                   <span className="text-muted-foreground">{String(value)}</span>
+                 </div>
+               ))}
+             </div>
           </Card>
         </TabsContent>
         

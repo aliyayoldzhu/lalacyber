@@ -1,26 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Search, Filter, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getProductsByCategory } from "@/data/products";
+import { getProductsByCategory, Product } from "@/data/products";
 
 export default function CategoryPage() {
   const { category } = useParams<{ category: string }>();
   const [searchTerm, setSearchTerm] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   
   if (!category) {
     return <div>Category not found</div>;
   }
 
   const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
-  const products = getProductsByCategory(categoryName);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const categoryProducts = await getProductsByCategory(categoryName);
+        setProducts(categoryProducts);
+      } catch (error) {
+        console.error('Error fetching category products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [categoryName]);
   
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.brand.toLowerCase().includes(searchTerm.toLowerCase())
+    (product.brand?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   const getStatusColor = (status: string) => {
@@ -35,6 +51,10 @@ export default function CategoryPage() {
         return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
+
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -91,7 +111,7 @@ export default function CategoryPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Badge variant="outline" className="text-xs">
-                    {product.brand}
+                    {product.brand || 'N/A'}
                   </Badge>
                 </div>
                 <Link to={`/product/${product.id}`}>

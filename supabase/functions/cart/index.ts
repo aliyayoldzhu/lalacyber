@@ -10,6 +10,7 @@ interface CartItem {
   user_id: string
   product_id: number
   quantity: number
+  is_selected: boolean
   created_at: string
   updated_at: string
   products?: {
@@ -183,11 +184,30 @@ Deno.serve(async (req) => {
       }
 
       case 'PUT': {
-        const { product_id, quantity } = await req.json()
+        const { product_id, quantity, is_selected } = await req.json()
 
-        if (!product_id || quantity < 1) {
+        if (!product_id) {
           return new Response(
-            JSON.stringify({ error: 'Invalid product_id or quantity' }),
+            JSON.stringify({ error: 'product_id is required' }),
+            { 
+              status: 400, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          )
+        }
+
+        // Build update object based on provided fields
+        const updateData: any = {}
+        if (quantity !== undefined && quantity >= 1) {
+          updateData.quantity = quantity
+        }
+        if (is_selected !== undefined) {
+          updateData.is_selected = is_selected
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          return new Response(
+            JSON.stringify({ error: 'No valid fields to update' }),
             { 
               status: 400, 
               headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -197,7 +217,7 @@ Deno.serve(async (req) => {
 
         const { data: updatedItem, error } = await supabaseClient
           .from('cart_items')
-          .update({ quantity })
+          .update(updateData)
           .eq('user_id', user.id)
           .eq('product_id', product_id)
           .select()

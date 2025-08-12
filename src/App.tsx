@@ -10,6 +10,8 @@ import Inventory from "./pages/Inventory";
 import Settings from "./pages/Settings";
 import CategoryPage from "./pages/CategoryPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
+import Favorites from "./pages/Favorites";
+import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +30,8 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/category/:category" element={<CategoryPage />} />
               <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/favorites" element={<Favorites />} />
+              <Route path="/cart" element={<Cart />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

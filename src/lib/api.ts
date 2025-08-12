@@ -71,7 +71,7 @@ export const cartApi = {
     return response.json()
   },
 
-  update: async (productId: number, quantity: number) => {
+  update: async (productId: number, updates: { quantity?: number; is_selected?: boolean }) => {
     const token = await getAuthToken()
     if (!token) throw new Error('Authentication required')
 
@@ -83,7 +83,7 @@ export const cartApi = {
       },
       body: JSON.stringify({
         product_id: productId,
-        quantity
+        ...updates
       })
     })
     if (!response.ok) {

@@ -9,17 +9,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getProductById, Product } from "@/data/products";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useToast } from "@/hooks/use-toast";
-import { cartApi, favoritesApi } from "@/lib/api";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useCart } from "@/hooks/useCart";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const { requireAuth, AuthGuard } = useAuthGuard();
   const { toast } = useToast();
+  const { isFavorite, addToFavorites, removeFromFavorites, isAdding: isAddingFavorite, isRemoving: isRemovingFavorite } = useFavorites();
+  const { addToCart, isAdding: isAddingToCart } = useCart();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -31,12 +32,6 @@ export default function ProductDetailPage() {
       try {
         const productData = await getProductById(parseInt(id))
         setProduct(productData || null)
-        
-        // Check if product is in favorites
-        if (productData) {
-          const isFav = await favoritesApi.isExists(productData.id)
-          setIsFavorite(isFav)
-        }
       } catch (error) {
         console.error('Error fetching product:', error)
         setProduct(null)
@@ -81,74 +76,31 @@ export default function ProductDetailPage() {
   };
 
   const handleAddToCart = () => {
-    requireAuth(async () => {
+    requireAuth(() => {
       if (!product) return
-      
-      setIsAddingToCart(true)
-      try {
-        await cartApi.add(product.id, quantity)
-        toast({
-          title: "Added to Cart",
-          description: `${product.name} (${quantity}) added to your cart`
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to add item to cart. Please try again.",
-          variant: "destructive"
-        });
-      } finally {
-        setIsAddingToCart(false)
-      }
+      addToCart(product.id, quantity)
     });
   };
 
   const handleBuyNow = () => {
-    requireAuth(async () => {
+    requireAuth(() => {
       if (!product) return
-      
-      try {
-        await cartApi.add(product.id, quantity)
-        toast({
-          title: "Redirecting to Checkout",
-          description: "Item added to cart. Taking you to checkout..."
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to process order. Please try again.",
-          variant: "destructive"
-        });
-      }
+      addToCart(product.id, quantity)
+      toast({
+        title: "Redirecting to Checkout",
+        description: "Item added to cart. Taking you to checkout..."
+      });
     });
   };
 
   const handleToggleFavorite = () => {
-    requireAuth(async () => {
+    requireAuth(() => {
       if (!product) return
       
-      try {
-        if (isFavorite) {
-          await favoritesApi.remove(product.id)
-          setIsFavorite(false)
-          toast({
-            title: "Removed from Favorites",
-            description: `${product.name} removed from your favorites`
-          });
-        } else {
-          await favoritesApi.add(product.id)
-          setIsFavorite(true)
-          toast({
-            title: "Added to Favorites",
-            description: `${product.name} added to your favorites`
-          });
-        }
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update favorites. Please try again.",
-          variant: "destructive"
-        });
+      if (isFavorite(product.id)) {
+        removeFromFavorites(product.id)
+      } else {
+        addToFavorites(product.id)
       }
     });
   };
@@ -178,9 +130,10 @@ export default function ProductDetailPage() {
             variant="ghost"
             size="icon"
             onClick={handleToggleFavorite}
-            className={isFavorite ? "text-red-500" : "text-muted-foreground"}
+            disabled={isAddingFavorite || isRemovingFavorite}
+            className={isFavorite(product.id) ? "text-red-500" : "text-muted-foreground"}
           >
-            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+            <Heart className={`h-5 w-5 ${isFavorite(product.id) ? 'fill-current' : ''}`} />
           </Button>
       </div>
 

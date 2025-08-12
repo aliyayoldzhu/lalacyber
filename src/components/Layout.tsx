@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Shield, ShoppingCart, User, LogOut } from "lucide-react";
+import { Shield, ShoppingCart, User, LogOut, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,11 +21,17 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, signOut } = useAuth();
   const { requireAuth, AuthGuard } = useAuthGuard();
+  const navigate = useNavigate();
 
   const handleCartClick = () => {
     requireAuth(() => {
-      // Handle cart action
-      console.log('Opening cart...');
+      navigate('/cart');
+    });
+  };
+
+  const handleFavoritesClick = () => {
+    requireAuth(() => {
+      navigate('/favorites');
     });
   };
 
@@ -54,6 +61,9 @@ export function Layout({ children }: LayoutProps) {
               </div>
               
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={handleFavoritesClick}>
+                  <Heart className="h-5 w-5" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={handleCartClick}>
                   <ShoppingCart className="h-5 w-5" />
                 </Button>

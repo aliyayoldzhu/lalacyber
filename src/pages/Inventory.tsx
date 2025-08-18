@@ -1,22 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Search, Filter, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { products, getAllCategories } from "@/data/products";
+import { productsApi } from "@/lib/api";
+import { Product } from "@/data/products";
 
 export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const [loading, setLoading] = useState(true);
 
-  const categories = ["All", ...getAllCategories()];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const allProducts = await productsApi.getAll();
+        setProducts(allProducts);
+        
+        const productCategories = [...new Set(allProducts.map((p: Product) => p.category))] as string[];
+        setCategories(["All", ...productCategories]);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.brand.toLowerCase().includes(searchTerm.toLowerCase());
+                         (product.brand?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "All" || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -33,6 +53,10 @@ export default function Inventory() {
         return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
+
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -97,7 +121,7 @@ export default function Inventory() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Badge variant="outline" className="text-xs">
-                    {product.brand}
+                    {product.brand || 'N/A'}
                   </Badge>
                 </div>
                 <Link to={`/product/${product.id}`}>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Shield, 
@@ -8,21 +9,38 @@ import {
   Network
 } from "lucide-react";
 import { CategoryCard } from "@/components/CategoryCard";
-import { products } from "@/data/products";
-
-const categories = [
-  { name: "Firewalls", icon: Shield, count: products.filter(p => p.category === "Firewalls").length },
-  { name: "Switches", icon: Network, count: products.filter(p => p.category === "Switches").length },
-  { name: "Routers", icon: Router, count: products.filter(p => p.category === "Routers").length },
-  { name: "Laptops", icon: Laptop, count: products.filter(p => p.category === "Laptops").length },
-  { name: "Servers", icon: Server, count: products.filter(p => p.category === "Servers").length },
-  { name: "Access Points", icon: Wifi, count: products.filter(p => p.category === "Access Points").length },
-];
+import { productsApi } from "@/lib/api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [categories, setCategories] = useState([
+    { name: "Firewalls", icon: Shield, count: 0 },
+    { name: "Switches", icon: Network, count: 0 },
+    { name: "Routers", icon: Router, count: 0 },
+    { name: "Laptops", icon: Laptop, count: 0 },
+    { name: "Servers", icon: Server, count: 0 },
+    { name: "Access Points", icon: Wifi, count: 0 },
+  ]);
+  const [totalDevices, setTotalDevices] = useState(0);
 
-  const totalDevices = products.length;
+  useEffect(() => {
+    const fetchCategoryCounts = async () => {
+      try {
+        const allProducts = await productsApi.getAll();
+        setTotalDevices(allProducts.length);
+        
+        const updatedCategories = categories.map(category => ({
+          ...category,
+          count: allProducts.filter(p => p.category === category.name).length
+        }));
+        setCategories(updatedCategories);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    fetchCategoryCounts();
+  }, []);
   return (
     <div className="space-y-8">
       {/* Header Section */}

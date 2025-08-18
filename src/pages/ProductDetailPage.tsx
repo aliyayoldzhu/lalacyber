@@ -1,22 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, ShoppingCart, Shield, Star, Truck, RotateCcw, CreditCard } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Shield, Star, Truck, RotateCcw, CreditCard, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getProductById } from "@/data/products";
+import { getProductById, Product } from "@/data/products";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useToast } from "@/hooks/use-toast";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useCart } from "@/hooks/useCart";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [product, setProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
-  
+  const [loading, setLoading] = useState(true);
+  const { requireAuth, AuthGuard } = useAuthGuard();
+  const { toast } = useToast();
+  const { isFavorite, addToFavorites, removeFromFavorites, isAdding: isAddingFavorite, isRemoving: isRemovingFavorite } = useFavorites();
+  const { addToCart, isAdding: isAddingToCart } = useCart();
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) {
+        setLoading(false)
+        return
+      }
+      
+      try {
+        const productData = await getProductById(parseInt(id))
+        setProduct(productData || null)
+      } catch (error) {
+        console.error('Error fetching product:', error)
+        setProduct(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProduct()
+  }, [id])
+
   if (!id) {
     return <div>Product not found</div>;
   }
 
-  const product = getProductById(parseInt(id));
+  if (loading) {
+    return <div className="flex justify-center items-center min-h-[400px]">Loading...</div>;
+  }
   
   if (!product) {
     return (
@@ -42,6 +75,36 @@ export default function ProductDetailPage() {
     }
   };
 
+  const handleAddToCart = () => {
+    requireAuth(() => {
+      if (!product) return
+      addToCart(product.id, quantity)
+    });
+  };
+
+  const handleBuyNow = () => {
+    requireAuth(() => {
+      if (!product) return
+      addToCart(product.id, quantity)
+      toast({
+        title: "Redirecting to Checkout",
+        description: "Item added to cart. Taking you to checkout..."
+      });
+    });
+  };
+
+  const handleToggleFavorite = () => {
+    requireAuth(() => {
+      if (!product) return
+      
+      if (isFavorite(product.id)) {
+        removeFromFavorites(product.id)
+      } else {
+        addToFavorites(product.id)
+      }
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -51,18 +114,27 @@ export default function ProductDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline">{product.category}</Badge>
-            <Badge className={getStatusColor(product.status)}>
-              {product.status}
-            </Badge>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline">{product.category}</Badge>
+              <Badge className={getStatusColor(product.status)}>
+                {product.status}
+              </Badge>
+            </div>
+            <h1 className="text-3xl font-bold bg-gradient-cyber bg-clip-text text-transparent">
+              {product.name}
+            </h1>
+            <p className="text-muted-foreground">{product.brand} • {product.model}</p>
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-cyber bg-clip-text text-transparent">
-            {product.name}
-          </h1>
-          <p className="text-muted-foreground">{product.brand} • {product.model}</p>
-        </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleToggleFavorite}
+            disabled={isAddingFavorite || isRemovingFavorite}
+            className={isFavorite(product.id) ? "text-red-500" : "text-muted-foreground"}
+          >
+            <Heart className={`h-5 w-5 ${isFavorite(product.id) ? 'fill-current' : ''}`} />
+          </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -124,12 +196,13 @@ export default function ProductDetailPage() {
                 <Button 
                   variant="cyber" 
                   className="flex-1"
-                  disabled={product.status === "Out of Stock"}
+                  disabled={product.status === "Out of Stock" || isAddingToCart}
+                  onClick={handleAddToCart}
                 >
                   <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
+                  {isAddingToCart ? "Adding..." : "Add to Cart"}
                 </Button>
-                <Button variant="cyber-outline">
+                <Button variant="cyber-outline" onClick={handleBuyNow}>
                   <CreditCard className="h-4 w-4" />
                   Buy Now
                 </Button>
@@ -161,6 +234,8 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
+      <AuthGuard />
+
       {/* Detailed Information Tabs */}
       <Tabs defaultValue="features" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
@@ -186,14 +261,14 @@ export default function ProductDetailPage() {
         <TabsContent value="specifications" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4 text-cyber-primary">Technical Specifications</h3>
-            <div className="space-y-3">
-              {Object.entries(product.technicalSpecs).map(([key, value]) => (
-                <div key={key} className="flex justify-between py-2 border-b border-border/50">
-                  <span className="font-medium">{key}:</span>
-                  <span className="text-muted-foreground">{value}</span>
-                </div>
-              ))}
-            </div>
+             <div className="space-y-3">
+               {product.technical_specs && Object.entries(product.technical_specs).map(([key, value]) => (
+                 <div key={key} className="flex justify-between py-2 border-b border-border/50">
+                   <span className="font-medium">{key}:</span>
+                   <span className="text-muted-foreground">{String(value)}</span>
+                 </div>
+               ))}
+             </div>
           </Card>
         </TabsContent>
         
